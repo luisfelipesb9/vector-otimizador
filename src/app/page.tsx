@@ -30,7 +30,8 @@ import {
   Network,
   Truck,
   Clock,
-  Gamepad2
+  Gamepad2,
+  Book
 } from 'lucide-react';
 import { SimplexResult } from '@/lib/simplex_engine';
 import { parseToraFile } from '@/lib/file_parser';
@@ -219,6 +220,11 @@ const HomeScreen = ({ onNewProject, onFileLoaded }: any) => {
               <Upload size={20} /> Carregar Arquivo
             </Button>
           </div>
+          <a href="/docs">
+            <Button variant="ghost" size="lg" className="w-full sm:w-auto h-14 px-8 text-lg text-slate-500 hover:text-blue-600">
+              <Book size={20} /> Documentação
+            </Button>
+          </a>
         </div>
       </div>
     </div>
