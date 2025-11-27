@@ -101,432 +101,11 @@ const generateMockResults = (variables: Variable[], problemData: ProblemData): A
     variables: varResults,
     shadowPrices: [10, 0],
     iterations: [],
-    graphData: null,
     problemData
   };
 };
 
-// --- TELA: MENU PRINCIPAL (TORA STYLE) ---
-const MenuScreen = ({ onSelect }: { onSelect: (module: string) => void }) => {
-  const modules = [
-    { id: 'LP', label: 'Linear Programming', icon: BarChart3, active: true, desc: 'Simplex, Dual, Gráfico' },
-    { id: 'IP', label: 'Integer Programming', icon: GitBranch, active: true, desc: 'Branch and Bound' },
-    { id: 'LE', label: 'Linear Equations', icon: Calculator, active: true, desc: 'Sistemas Ax = b' },
-    { id: 'TM', label: 'Transportation Model', icon: Truck, active: false, desc: 'Em Breve' },
-    { id: 'NM', label: 'Network Models', icon: Network, active: false, desc: 'Em Breve' },
-    { id: 'PP', label: 'Project Planning', icon: Clock, active: false, desc: 'Em Breve' },
-    { id: 'QA', label: 'Queuing Analysis', icon: Grid3X3, active: false, desc: 'Em Breve' },
-    { id: 'ZS', label: 'Zero-Sum Games', icon: Gamepad2, active: false, desc: 'Em Breve' },
-  ];
-
-  return (
-    <div className="max-w-5xl mx-auto animate-in fade-in duration-500 py-12">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl font-extrabold text-slate-900 mb-4">Selecione o Módulo</h2>
-        <p className="text-slate-500 text-lg">Escolha a ferramenta de Pesquisa Operacional que deseja utilizar.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
-        {modules.map((mod) => (
-          <button
-            key={mod.id}
-            onClick={() => mod.active && onSelect(mod.id)}
-            disabled={!mod.active}
-            className={`
-              group relative flex flex-col items-start p-6 rounded-2xl border-2 text-left transition-all
-              ${mod.active
-                ? 'bg-white border-slate-200 hover:border-blue-500 hover:shadow-xl hover:-translate-y-1 cursor-pointer'
-                : 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'}
-            `}
-          >
-            <div className={`
-              p-3 rounded-xl mb-4 transition-colors
-              ${mod.active ? 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white' : 'bg-slate-100 text-slate-400'}
-            `}>
-              <mod.icon size={32} />
-            </div>
-            <h3 className={`font-bold text-xl mb-1 ${mod.active ? 'text-slate-900' : 'text-slate-400'}`}>
-              {mod.label}
-            </h3>
-            <p className="text-sm text-slate-500 font-medium">{mod.desc}</p>
-
-            {!mod.active && (
-              <span className="absolute top-4 right-4 text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-500 px-2 py-1 rounded-full">
-                Em Breve
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// --- TELA: SISTEMAS LINEARES ---
-const LinearEqScreen = ({ onBack }: { onBack: () => void }) => {
-  const [dimension, setDimension] = useState(3);
-  const [matrix, setMatrix] = useState<number[][]>([]);
-  const [rhs, setRhs] = useState<number[]>([]);
-  const [solution, setSolution] = useState<number[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Init grid
-  useEffect(() => {
-    setMatrix(Array(dimension).fill(0).map(() => Array(dimension).fill(0)));
-    setRhs(Array(dimension).fill(0));
-    setSolution(null);
-    setError(null);
-  }, [dimension]);
-
-  const handleSolve = () => {
-    try {
-      setError(null);
-      const result = solveLinearSystem(matrix, rhs);
-      setSolution(result);
-    } catch (e: any) {
-      setError(e.message);
-      setSolution(null);
-    }
-  };
-
-  const updateMatrix = (r: number, c: number, val: string) => {
-    const newM = [...matrix];
-    newM[r][c] = parseFloat(val) || 0;
-    setMatrix(newM);
-  };
-
-  const updateRhs = (i: number, val: string) => {
-    const newR = [...rhs];
-    newR[i] = parseFloat(val) || 0;
-    setRhs(newR);
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto animate-in fade-in duration-500 py-8 px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-3xl font-extrabold text-slate-900">Sistemas Lineares</h2>
-          <p className="text-slate-500">Resolução de sistemas Ax = b por Eliminação Gaussiana.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <label className="font-bold text-slate-700">Dimensão (N):</label>
-          <input
-            type="number"
-            min="2" max="10"
-            value={dimension}
-            onChange={(e) => setDimension(parseInt(e.target.value) || 2)}
-            className="w-20 h-10 border rounded-lg text-center font-bold"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-8 items-start">
-        <Card className="flex-1 shadow-lg border-blue-100">
-          <CardHeader className="bg-blue-50/50 border-b border-blue-100">
-            <CardTitle className="text-blue-900">Matriz A e Vetor b</CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <div className="flex items-center gap-4">
-              {/* Matrix A */}
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dimension}, minmax(60px, 1fr))` }}>
-                {matrix.map((row, i) => (
-                  row.map((val, j) => (
-                    <Input
-                      key={`${i}-${j}`}
-                      type="number"
-                      placeholder={`a${i + 1}${j + 1}`}
-                      onChange={(e) => updateMatrix(i, j, e.target.value)}
-                      className="text-center font-mono text-slate-700"
-                    />
-                  ))
-                ))}
-              </div>
-
-              <div className="text-2xl font-bold text-slate-300">×</div>
-
-              {/* Vector X (Label) */}
-              <div className="flex flex-col gap-2">
-                {Array(dimension).fill(0).map((_, i) => (
-                  <div key={i} className="h-10 w-12 flex items-center justify-center bg-slate-100 rounded border border-slate-200 font-bold text-slate-500 text-sm">
-                    x{i + 1}
-                  </div>
-                ))}
-              </div>
-
-              <div className="text-2xl font-bold text-slate-300">=</div>
-
-              {/* Vector b */}
-              <div className="flex flex-col gap-2">
-                {rhs.map((val, i) => (
-                  <Input
-                    key={`rhs-${i}`}
-                    type="number"
-                    placeholder={`b${i + 1}`}
-                    onChange={(e) => updateRhs(i, e.target.value)}
-                    className="w-20 text-center font-bold text-blue-700 bg-blue-50 border-blue-200"
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-end">
-              <Button onClick={handleSolve} size="lg" className="shadow-blue-500/20">
-                <Calculator size={18} /> Resolver Sistema
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results */}
-        <div className="w-full md:w-64 space-y-4">
-          {error && (
-            <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-sm font-medium flex items-start gap-2">
-              <AlertCircle size={16} className="mt-0.5 shrink-0" />
-              {error}
-            </div>
-          )}
-
-          {solution && (
-            <Card className="border-green-200 bg-green-50/30 shadow-lg">
-              <CardHeader className="border-green-100 pb-2">
-                <CardTitle className="text-green-800 flex items-center gap-2">
-                  <CheckCircle2 size={18} /> Solução
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {solution.map((val, i) => (
-                    <div key={i} className="flex justify-between items-center p-2 bg-white rounded border border-green-100 shadow-sm">
-                      <span className="font-bold text-green-700">x{i + 1}</span>
-                      <span className="font-mono font-bold text-slate-900">{val.toFixed(4)}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- TELA 1: HOME (SIMPLIFICADA) ---
-const HomeScreen = ({ onNewProject, onFileLoaded }: { onNewProject: () => void, onFileLoaded: (data: any) => void }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    try {
-      const parsed = parseToraFile(text);
-      onFileLoaded(parsed);
-    } catch (err: any) {
-      alert("Erro ao ler arquivo: " + err.message);
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] space-y-12 animate-in fade-in duration-700 px-4">
-      <div className="text-center space-y-6 flex flex-col items-center">
-        <div className="relative w-96 h-32 mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
-          <img src="/logo-vector.png" alt="Vector Logo" className="w-full h-full object-contain" />
-        </div>
-        <h1 className="text-5xl font-extrabold tracking-tight lg:text-6xl text-slate-900 sr-only">Vector Otimizador</h1>
-        <p className="text-2xl text-slate-600 max-w-2xl mx-auto font-medium">
-          Suíte de Otimização e Pesquisa Operacional.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-        <button
-          onClick={onNewProject}
-          className="group relative flex flex-col items-start gap-4 rounded-2xl border-2 border-slate-200 p-8 text-left shadow-lg transition-all hover:border-blue-500 hover:shadow-blue-500/20 bg-white hover:-translate-y-1"
-        >
-          <div className="p-3 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors">
-            <Plus className="h-8 w-8 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-bold text-xl text-slate-900">Novo Projeto</h3>
-            <p className="text-slate-500 mt-1">Iniciar nova análise.</p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="group relative flex flex-col items-start gap-4 rounded-2xl border-2 border-slate-200 p-8 text-left shadow-lg transition-all hover:border-emerald-500 hover:shadow-emerald-500/20 bg-white hover:-translate-y-1"
-        >
-          <div className="p-3 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 transition-colors">
-            <FolderOpen className="h-8 w-8 text-emerald-600" />
-          </div>
-          <div>
-            <h3 className="font-bold text-xl text-slate-900">Abrir Arquivo</h3>
-            <p className="text-slate-500 mt-1">Carregar arquivo .txt (TORA).</p>
-          </div>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".txt,.json" onChange={handleFileChange} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// --- TELA 2: VARIÁVEIS (Mantida) ---
-interface VariableSetupProps {
-  variables: Variable[];
-  setVariables: (vars: Variable[]) => void;
-  onNext: () => void;
-}
-const VariableSetup = ({ variables, setVariables, onNext }: VariableSetupProps) => {
-  const addVar = () => {
-    const id = variables.length + 1;
-    setVariables([...variables, { id, name: `x${id}`, description: '' }]);
-  };
-  const removeVar = (index: number) => {
-    if (variables.length <= 2) return;
-    const newVars = variables.filter((_: any, i: number) => i !== index);
-    setVariables(newVars);
-  };
-  const updateVar = (index: number, field: string, value: string) => {
-    const newVars = [...variables];
-    // @ts-ignore
-    newVars[index] = { ...newVars[index], [field]: value };
-    setVariables(newVars);
-  };
-  return (
-    <div className="max-w-3xl mx-auto animate-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8">
-        <h2 className="text-3xl font-extrabold text-slate-900">Definição de Variáveis</h2>
-        <p className="text-slate-500 text-lg">Identifique as variáveis de decisão.</p>
-      </div>
-      <Card className="border-slate-300 shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between bg-slate-50/80">
-          <CardTitle>Variáveis de Decisão</CardTitle>
-          <Button onClick={addVar} size="sm" variant="secondary"><Plus size={16} /> Adicionar</Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {variables.map((variable: Variable, index: number) => (
-            <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 group hover:border-blue-300 transition-colors shadow-sm">
-              <div className="w-10 h-10 rounded-lg bg-white border-2 border-slate-200 flex items-center justify-center font-mono text-sm font-bold text-slate-500">x{index + 1}</div>
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Nome</label>
-                  <Input value={variable.name} onChange={(e: any) => updateVar(index, 'name', e.target.value)} placeholder={`Ex: Mesas`} className="font-bold text-slate-800 border-slate-300" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Descrição</label>
-                  <Input value={variable.description} onChange={(e: any) => updateVar(index, 'description', e.target.value)} placeholder="Opcional..." />
-                </div>
-              </div>
-              {variables.length > 2 && (
-                <button onClick={() => removeVar(index)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={20} /></button>
-              )}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      <div className="flex justify-end mt-8">
-        <Button size="lg" onClick={onNext} className="shadow-xl shadow-blue-900/20">Continuar <ChevronRight size={18} /></Button>
-      </div>
-    </div>
-  );
-};
-
-// --- TELA 3: MODELAGEM (Mantida) ---
-interface ModelingScreenProps {
-  data: ProblemData;
-  setData: (data: ProblemData) => void;
-  variables: Variable[];
-  onSolve: () => void;
-  isSolving: boolean;
-}
-const ModelingScreen = ({ data, setData, variables, onSolve, isSolving }: ModelingScreenProps) => {
-  const updateObjective = (index: number, val: string) => {
-    const newObj = [...data.objective];
-    newObj[index] = val;
-    setData({ ...data, objective: newObj });
-  };
-  const addConstraint = () => {
-    const newConstraints = [...data.constraints, { coeffs: Array(variables.length).fill(''), sign: '<=', rhs: '' }];
-    setData({ ...data, constraints: newConstraints });
-  };
-  const updateConstraint = (cIndex: number, field: string, val: any, vIndex?: number) => {
-    const newConstraints = [...data.constraints];
-    if (field === 'coeff' && typeof vIndex === 'number') {
-      newConstraints[cIndex].coeffs[vIndex] = val;
-    } else {
-      // @ts-ignore
-      newConstraints[cIndex][field] = val;
-    }
-    setData({ ...data, constraints: newConstraints });
-  };
-  return (
-    <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-3xl font-extrabold text-slate-900">Modelagem Matemática</h2>
-          <p className="text-slate-500 text-lg">Construa as equações do modelo.</p>
-        </div>
-        <div className="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
-          <button onClick={() => setData({ ...data, type: 'MAX' })} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${data.type === 'MAX' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>MAXIMIZAR</button>
-          <button onClick={() => setData({ ...data, type: 'MIN' })} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${data.type === 'MIN' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>MINIMIZAR</button>
-        </div>
-      </div>
-      <Card className="mb-8 border-l-8 border-l-blue-600 shadow-lg">
-        <CardContent className="pt-8 pb-8">
-          <h3 className="text-sm font-extrabold text-blue-800 mb-6 uppercase tracking-widest flex items-center gap-2"><Sigma size={18} /> Função Objetivo (Z)</h3>
-          <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-            <span className="text-3xl font-serif italic text-slate-800 font-bold mr-4">Z =</span>
-            {variables.map((variable: Variable, i: number) => (
-              <div key={i} className="flex items-center gap-3">
-                <Input type="number" value={data.objective[i] || ''} onChange={(e: any) => updateObjective(i, e.target.value)} placeholder="0" className="w-28 text-center text-xl font-bold h-12 border-blue-200 focus:border-blue-500" />
-                <div className="flex flex-col"><span className="font-bold text-slate-900 text-lg">{variable.name}</span></div>
-                {i < variables.length - 1 && <span className="text-slate-400 font-bold text-2xl mx-2">+</span>}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="border-l-8 border-l-emerald-500 shadow-lg">
-        <CardContent className="pt-8 pb-8">
-          <div className="flex justify-between mb-6">
-            <h3 className="text-sm font-extrabold text-emerald-800 uppercase tracking-widest flex items-center gap-2"><Table2 size={18} /> Restrições</h3>
-            <Button size="sm" variant="secondary" onClick={addConstraint} className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"><Plus size={14} /> Adicionar Restrição</Button>
-          </div>
-          <div className="space-y-4">
-            {data.constraints.map((constraint: any, rIndex: number) => (
-              <div key={rIndex} className="flex items-center gap-3 p-5 rounded-xl border border-slate-200 bg-white hover:border-emerald-400 transition-colors shadow-sm">
-                <span className="font-mono text-xs font-bold text-slate-400 w-8">R{rIndex + 1}</span>
-                {variables.map((variable: Variable, vIndex: number) => (
-                  <div key={vIndex} className="flex items-center gap-2">
-                    <Input type="number" className="w-24 text-center h-10 font-medium" placeholder="0" value={constraint.coeffs[vIndex] || ''} onChange={(e: any) => updateConstraint(rIndex, 'coeff', e.target.value, vIndex)} />
-                    <span className="text-sm font-bold text-slate-700">{variable.name}</span>
-                    {vIndex < variables.length - 1 && <span className="text-slate-300 font-bold mx-1">+</span>}
-                  </div>
-                ))}
-                <div className="w-px h-8 bg-slate-200 mx-4" />
-                <select className="h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 text-lg font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20" value={constraint.sign} onChange={(e) => updateConstraint(rIndex, 'sign', e.target.value)}>
-                  <option value="<=">≤</option>
-                  <option value=">=">≥</option>
-                  <option value="=">=</option>
-                </select>
-                <Input type="number" className="w-28 h-10 font-bold text-emerald-800 bg-emerald-50 border-emerald-200 text-lg" placeholder="RHS" value={constraint.rhs} onChange={(e: any) => updateConstraint(rIndex, 'rhs', e.target.value)} />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-      <div className="mt-10 flex justify-end">
-        <Button size="lg" className="h-14 px-8 text-lg shadow-xl shadow-blue-900/30 hover:scale-105 transition-transform" onClick={onSolve} disabled={isSolving}>
-          {isSolving ? <Loader2 className="animate-spin mr-2" /> : <Play size={20} fill="currentColor" />}
-          {isSolving ? 'CALCULAR SOLUÇÃO ÓTIMA' : 'CALCULAR SOLUÇÃO ÓTIMA'}
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-// --- COMPONENTE: TABELA SIMPLEX (Mantido) ---
+// --- COMPONENTE: TABELA SIMPLEX ---
 const SimplexTableau = ({ iteration, variables }: any) => {
   const numDecisionVars = variables.length;
   const colsCount = iteration.zRow.length;
@@ -558,7 +137,7 @@ const SimplexTableau = ({ iteration, variables }: any) => {
   );
 };
 
-// --- COMPONENTE DUAL (Mantido) ---
+// --- COMPONENTE DUAL ---
 const DualAnalyzer = ({ problemData, variables, zValue }: any) => {
   const isPrimalMax = problemData.type === 'MAX';
   const dualType = isPrimalMax ? 'MIN' : 'MAX';
@@ -610,7 +189,430 @@ const DualAnalyzer = ({ problemData, variables, zValue }: any) => {
   );
 };
 
-// --- TELA 4: WORKSPACE (Mantida) ---
+// --- TELA: HOME ---
+const HomeScreen = ({ onNewProject, onFileLoaded }: any) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseToraFile(text);
+      onFileLoaded(parsed);
+    } catch (err) {
+      alert("Erro ao ler arquivo.");
+    }
+  };
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50">
+      <div className="text-center space-y-8 max-w-2xl px-4">
+        <div className="w-64 mx-auto mb-8"><img src="/logo-vector.png" alt="Vector" className="w-full" /></div>
+        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Otimização Linear Avançada</h1>
+        <p className="text-xl text-slate-500">Resolva problemas de programação linear, inteira e sistemas de equações com precisão e facilidade.</p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
+          <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg shadow-xl shadow-blue-900/20" onClick={onNewProject}>
+            <Plus size={20} /> Novo Projeto
+          </Button>
+          <div className="relative">
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".txt,.json" />
+            <Button variant="secondary" size="lg" className="w-full sm:w-auto h-14 px-8 text-lg" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={20} /> Carregar Arquivo
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- TELA: MENU ---
+const MenuScreen = ({ onSelect, onBack }: { onSelect: (module: string) => void, onBack: () => void }) => {
+  const modules = [
+    { id: 'LE', title: 'Linear Equations', desc: 'Gauss-Jordan / Matrix Inversion', icon: Network, color: 'emerald' },
+    { id: 'LP', title: 'Linear Programming', desc: 'Simplex Method / Sensitivity Analysis', icon: Grid3X3, color: 'blue' },
+    { id: 'TR', title: 'Transportation Model', desc: 'Vogel / Northwest Corner (Coming Soon)', icon: Truck, color: 'slate', disabled: true },
+    { id: 'IP', title: 'Integer Programming', desc: 'Branch and Bound / Cutting Plane', icon: GitBranch, color: 'indigo' },
+    { id: 'NM', title: 'Network Models', desc: 'CPM / PERT (Coming Soon)', icon: Network, color: 'slate', disabled: true },
+    { id: 'PP', title: 'Project Planning', desc: 'Gantt / Resource Allocation (Coming Soon)', icon: Clock, color: 'slate', disabled: true },
+    { id: 'QA', title: 'Queuing Analysis', desc: 'M/M/1 / M/M/c (Coming Soon)', icon: Clock, color: 'slate', disabled: true },
+    { id: 'ZS', title: 'Zero-Sum Games', desc: 'Minimax / Maximin (Coming Soon)', icon: Gamepad2, color: 'slate', disabled: true },
+  ];
+  return (
+    <div className="max-w-5xl mx-auto animate-in fade-in duration-500 py-12">
+      <div className="flex items-center justify-between mb-12 px-4">
+        <Button variant="ghost" onClick={onBack} className="gap-2"><ChevronRight className="rotate-180" size={20} /> Voltar</Button>
+        <h2 className="text-3xl font-extrabold text-slate-900">Selecione um Módulo</h2>
+      </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
+        {modules.map((m) => {
+          const Icon = m.icon;
+          return (
+            <button key={m.id} disabled={m.disabled} onClick={() => onSelect(m.id)} className={`flex flex-col items-start p-6 rounded-2xl border-2 text-left transition-all ${m.disabled ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed' : 'border-slate-200 bg-white hover:border-blue-500 hover:shadow-xl hover:-translate-y-1 group'}`}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${m.disabled ? 'bg-slate-200 text-slate-400' : `bg-${m.color}-50 text-${m.color}-600 group-hover:scale-110 transition-transform`}`}><Icon size={24} /></div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">{m.title}</h3>
+              <p className="text-sm text-slate-500">{m.desc}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- TELA: SISTEMAS LINEARES ---
+const LinearEqScreen = ({ onBack }: { onBack: () => void }) => {
+  const [dimension, setDimension] = useState(3);
+  const [matrix, setMatrix] = useState<string[][]>([]);
+  const [rhs, setRhs] = useState<string[]>([]);
+  const [solution, setSolution] = useState<number[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMatrix(Array(dimension).fill(0).map(() => Array(dimension).fill('')));
+    setRhs(Array(dimension).fill(''));
+    setSolution(null);
+    setError(null);
+  }, [dimension]);
+
+  const handleSolve = () => {
+    try {
+      setError(null);
+      if (matrix.some(row => row.some(v => v.trim() === '')) || rhs.some(v => v.trim() === '')) {
+        throw new Error("Preencha todos os campos da matriz e do vetor.");
+      }
+      const numMatrix = matrix.map(row => row.map(Number));
+      const numRhs = rhs.map(Number);
+      if (numMatrix.some(row => row.some(isNaN)) || numRhs.some(isNaN)) {
+        throw new Error("Valores inválidos detectados.");
+      }
+      const result = solveLinearSystem(numMatrix, numRhs);
+      setSolution(result);
+    } catch (e: any) {
+      setError(e.message);
+      setSolution(null);
+    }
+  };
+
+  const updateMatrix = (r: number, c: number, val: string) => {
+    const newM = [...matrix];
+    newM[r][c] = val;
+    setMatrix(newM);
+  };
+
+  const updateRhs = (i: number, val: string) => {
+    const newR = [...rhs];
+    newR[i] = val;
+    setRhs(newR);
+  };
+
+  const isValid = !matrix.some(row => row.some(v => v.trim() === '')) && !rhs.some(v => v.trim() === '');
+
+  return (
+    <div className="max-w-4xl mx-auto animate-in fade-in duration-500 py-8 px-4">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack} className="gap-2">
+            <ChevronRight className="rotate-180" size={20} /> Voltar
+          </Button>
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-900">Sistemas Lineares</h2>
+            <p className="text-slate-500">Resolução de sistemas Ax = b por Eliminação Gaussiana.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="font-bold text-slate-700">Dimensão (N):</label>
+          <input
+            type="number"
+            min="2" max="10"
+            value={dimension}
+            onChange={(e) => setDimension(parseInt(e.target.value) || 2)}
+            className="w-20 h-10 border rounded-lg text-center font-bold"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        <Card className="flex-1 shadow-lg border-blue-100">
+          <CardHeader className="bg-blue-50/50 border-b border-blue-100">
+            <CardTitle className="text-blue-900">Matriz A e Vetor b</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <div className="flex items-center gap-4">
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dimension}, minmax(60px, 1fr))` }}>
+                {matrix.map((row, i) => (
+                  row.map((val, j) => (
+                    <Input
+                      key={`${i}-${j}`}
+                      placeholder={`a${i + 1}${j + 1}`}
+                      value={val}
+                      onChange={(e) => updateMatrix(i, j, e.target.value)}
+                      className="text-center font-mono text-slate-700"
+                    />
+                  ))
+                ))}
+              </div>
+              <div className="text-2xl font-bold text-slate-300">×</div>
+              <div className="flex flex-col gap-2">
+                {Array(dimension).fill(0).map((_, i) => (
+                  <div key={i} className="h-10 w-12 flex items-center justify-center bg-slate-100 rounded border border-slate-200 font-bold text-slate-500 text-sm">
+                    x{i + 1}
+                  </div>
+                ))}
+              </div>
+              <div className="text-2xl font-bold text-slate-300">=</div>
+              <div className="flex flex-col gap-2">
+                {rhs.map((val, i) => (
+                  <Input
+                    key={`rhs-${i}`}
+                    placeholder={`b${i + 1}`}
+                    value={val}
+                    onChange={(e) => updateRhs(i, e.target.value)}
+                    className="w-20 text-center font-bold text-blue-700 bg-blue-50 border-blue-200"
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 flex justify-end">
+              <Button onClick={handleSolve} size="lg" className="shadow-blue-500/20" disabled={!isValid}>
+                <Calculator size={18} /> Resolver Sistema
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="w-full md:w-64 space-y-4">
+          {error && (
+            <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-sm font-medium flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              {error}
+            </div>
+          )}
+          {solution && (
+            <Card className="border-green-200 bg-green-50/30 shadow-lg">
+              <CardHeader className="border-green-100 pb-2">
+                <CardTitle className="text-green-800 flex items-center gap-2">
+                  <CheckCircle2 size={18} /> Solução
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {solution.map((val, i) => (
+                    <div key={i} className="flex justify-between items-center p-2 bg-white rounded border border-green-100 shadow-sm">
+                      <span className="font-bold text-green-700">x{i + 1}</span>
+                      <span className="font-mono font-bold text-slate-900">{val.toFixed(4)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- TELA: VARIÁVEIS ---
+interface VariableSetupProps {
+  variables: Variable[];
+  setVariables: (vars: Variable[]) => void;
+  onNext: () => void;
+  onBack: () => void;
+}
+const VariableSetup = ({ variables, setVariables, onNext, onBack }: VariableSetupProps) => {
+  const addVar = () => {
+    const id = variables.length + 1;
+    setVariables([...variables, { id, name: `x${id}`, description: '' }]);
+  };
+  const removeVar = (index: number) => {
+    if (variables.length <= 2) return;
+    const newVars = variables.filter((_: any, i: number) => i !== index);
+    setVariables(newVars);
+  };
+  const updateVar = (index: number, field: string, value: string) => {
+    const newVars = [...variables];
+    // @ts-ignore
+    newVars[index] = { ...newVars[index], [field]: value };
+    setVariables(newVars);
+  };
+
+  const isValid = variables.every(v => v.name.trim().length > 0);
+
+  return (
+    <div className="max-w-3xl mx-auto animate-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack} className="gap-2">
+            <ChevronRight className="rotate-180" size={20} /> Voltar
+          </Button>
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-900">Definição de Variáveis</h2>
+            <p className="text-slate-500 text-lg">Identifique as variáveis de decisão.</p>
+          </div>
+        </div>
+      </div>
+      <Card className="border-slate-300 shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between bg-slate-50/80">
+          <CardTitle>Variáveis de Decisão</CardTitle>
+          <Button onClick={addVar} size="sm" variant="secondary"><Plus size={16} /> Adicionar</Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {variables.map((variable: Variable, index: number) => (
+            <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 group hover:border-blue-300 transition-colors shadow-sm">
+              <div className="w-10 h-10 rounded-lg bg-white border-2 border-slate-200 flex items-center justify-center font-mono text-sm font-bold text-slate-500">x{index + 1}</div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Nome</label>
+                  <Input value={variable.name} onChange={(e: any) => updateVar(index, 'name', e.target.value)} placeholder={`Ex: Mesas`} className="font-bold text-slate-800 border-slate-300" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Descrição</label>
+                  <Input value={variable.description} onChange={(e: any) => updateVar(index, 'description', e.target.value)} placeholder="Opcional..." />
+                </div>
+              </div>
+              {variables.length > 2 && (
+                <button onClick={() => removeVar(index)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={20} /></button>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      <div className="flex justify-end mt-8">
+        <Button size="lg" onClick={onNext} disabled={!isValid} className="shadow-xl shadow-blue-900/20">Continuar <ChevronRight size={18} /></Button>
+      </div>
+    </div>
+  );
+};
+
+// --- TELA: MODELAGEM ---
+interface ModelingScreenProps {
+  data: ProblemData;
+  setData: (data: ProblemData) => void;
+  variables: Variable[];
+  onSolve: () => void;
+  isSolving: boolean;
+  onBack: () => void;
+}
+const ModelingScreen = ({ data, setData, variables, onSolve, isSolving, onBack }: ModelingScreenProps) => {
+  const updateObjective = (index: number, val: string) => {
+    const newObj = [...data.objective];
+    newObj[index] = val;
+    setData({ ...data, objective: newObj });
+  };
+  const addConstraint = () => {
+    const newConstraints = [...data.constraints, { coeffs: Array(variables.length).fill(''), sign: '<=', rhs: '' }];
+    setData({ ...data, constraints: newConstraints });
+  };
+  const removeConstraint = (index: number) => {
+    if (data.constraints.length <= 1) return;
+    const newConstraints = data.constraints.filter((_, i) => i !== index);
+    setData({ ...data, constraints: newConstraints });
+  };
+  const addZConstraint = () => {
+    // Create a constraint where coeffs are the current objective function coeffs
+    // This allows Z >= value or Z <= value
+    const newConstraint = {
+      coeffs: [...data.objective], // Copy objective coeffs
+      sign: '>=',
+      rhs: ''
+    };
+    setData({ ...data, constraints: [...data.constraints, newConstraint] });
+  };
+  const updateConstraint = (cIndex: number, field: string, val: any, vIndex?: number) => {
+    const newConstraints = [...data.constraints];
+    if (field === 'coeff' && typeof vIndex === 'number') {
+      newConstraints[cIndex].coeffs[vIndex] = val;
+    } else {
+      // @ts-ignore
+      newConstraints[cIndex][field] = val;
+    }
+    setData({ ...data, constraints: newConstraints });
+  };
+
+  const isValid = data.objective.every(v => v !== '') &&
+    data.constraints.every(c => c.coeffs.every(co => co !== '') && c.rhs !== '');
+
+  return (
+    <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack} className="gap-2">
+            <ChevronRight className="rotate-180" size={20} /> Voltar
+          </Button>
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-900">Modelagem Matemática</h2>
+            <p className="text-slate-500 text-lg">Construa as equações do modelo.</p>
+          </div>
+        </div>
+        <div className="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+          <button onClick={() => setData({ ...data, type: 'MAX' })} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${data.type === 'MAX' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>MAXIMIZAR</button>
+          <button onClick={() => setData({ ...data, type: 'MIN' })} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${data.type === 'MIN' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>MINIMIZAR</button>
+        </div>
+      </div>
+      <Card className="mb-8 border-l-8 border-l-blue-600 shadow-lg">
+        <CardContent className="pt-8 pb-8">
+          <h3 className="text-sm font-extrabold text-blue-800 mb-6 uppercase tracking-widest flex items-center gap-2"><Sigma size={18} /> Função Objetivo (Z)</h3>
+          <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+            <span className="text-3xl font-serif italic text-slate-800 font-bold mr-4">Z =</span>
+            {variables.map((variable: Variable, i: number) => (
+              <div key={i} className="flex items-center gap-3">
+                <Input type="number" value={data.objective[i] || ''} onChange={(e: any) => updateObjective(i, e.target.value)} placeholder="0" className="w-28 text-center text-xl font-bold h-12 border-blue-200 focus:border-blue-500" />
+                <div className="flex flex-col"><span className="font-bold text-slate-900 text-lg">{variable.name}</span></div>
+                {i < variables.length - 1 && <span className="text-slate-400 font-bold text-2xl mx-2">+</span>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button size="sm" variant="outline" onClick={addZConstraint} className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50" title="Adiciona uma restrição baseada na função objetivo (ex: Z >= 100)">
+              <Plus size={14} /> Adicionar Limite em Z
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="border-l-8 border-l-emerald-500 shadow-lg">
+        <CardContent className="pt-8 pb-8">
+          <div className="flex justify-between mb-6">
+            <h3 className="text-sm font-extrabold text-emerald-800 uppercase tracking-widest flex items-center gap-2"><Table2 size={18} /> Restrições</h3>
+            <Button size="sm" variant="secondary" onClick={addConstraint} className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"><Plus size={14} /> Adicionar Restrição</Button>
+          </div>
+          <div className="space-y-4">
+            {data.constraints.map((constraint: any, rIndex: number) => (
+              <div key={rIndex} className="flex items-center gap-3 p-5 rounded-xl border border-slate-200 bg-white hover:border-emerald-400 transition-colors shadow-sm">
+                <span className="font-mono text-xs font-bold text-slate-400 w-8">R{rIndex + 1}</span>
+                {variables.map((variable: Variable, vIndex: number) => (
+                  <div key={vIndex} className="flex items-center gap-2">
+                    <Input type="number" className="w-24 text-center h-10 font-medium" placeholder="0" value={constraint.coeffs[vIndex] || ''} onChange={(e: any) => updateConstraint(rIndex, 'coeff', e.target.value, vIndex)} />
+                    <span className="text-sm font-bold text-slate-700">{variable.name}</span>
+                    {vIndex < variables.length - 1 && <span className="text-slate-300 font-bold mx-1">+</span>}
+                  </div>
+                ))}
+                <div className="w-px h-8 bg-slate-200 mx-4" />
+                <select className="h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 text-lg font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20" value={constraint.sign} onChange={(e) => updateConstraint(rIndex, 'sign', e.target.value)}>
+                  <option value="<=">≤</option>
+                  <option value=">=">≥</option>
+                  <option value="=">=</option>
+                </select>
+                <Input type="number" className="w-28 h-10 font-bold text-emerald-800 bg-emerald-50 border-emerald-200 text-lg" placeholder="RHS" value={constraint.rhs} onChange={(e: any) => updateConstraint(rIndex, 'rhs', e.target.value)} />
+                {data.constraints.length > 1 && (
+                  <button onClick={() => removeConstraint(rIndex)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Remover restrição">
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <div className="mt-10 flex justify-end">
+        <Button size="lg" className="h-14 px-8 text-lg shadow-xl shadow-blue-900/30 hover:scale-105 transition-transform" onClick={onSolve} disabled={isSolving || !isValid}>
+          {isSolving ? <Loader2 className="animate-spin mr-2" /> : <Play size={20} fill="currentColor" />}
+          {isSolving ? 'CALCULAR SOLUÇÃO ÓTIMA' : 'CALCULAR SOLUÇÃO ÓTIMA'}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// --- TELA: WORKSPACE ---
 const AnalysisWorkspace = ({ variables, results, onBack, problemData }: any) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -727,10 +729,10 @@ export default function VectorApp() {
       </header>
       <main>
         {view === 'HOME' && <HomeScreen onNewProject={() => setView('MENU')} onFileLoaded={handleFileLoaded} />}
-        {view === 'MENU' && <MenuScreen onSelect={handleMenuSelect} />}
+        {view === 'MENU' && <MenuScreen onSelect={handleMenuSelect} onBack={backToHome} />}
         {view === 'LINEAR_EQ' && <LinearEqScreen onBack={() => setView('MENU')} />}
-        {view === 'SETUP_VARS' && <div className="container mx-auto py-12 px-6"><VariableSetup variables={variables} setVariables={(vars: Variable[]) => { setVariables(vars); setProblemData(prev => ({ ...prev, objective: Array(vars.length).fill(''), constraints: prev.constraints.map(c => ({ ...c, coeffs: Array(vars.length).fill('') })) })); }} onNext={() => setView('MODELING')} /></div>}
-        {view === 'MODELING' && <div className="container mx-auto py-12 px-6"><ModelingScreen data={problemData} setData={setProblemData} variables={variables} onSolve={handleSolve} isSolving={isSolving} /></div>}
+        {view === 'SETUP_VARS' && <div className="container mx-auto py-12 px-6"><VariableSetup variables={variables} setVariables={(vars: Variable[]) => { setVariables(vars); setProblemData(prev => ({ ...prev, objective: Array(vars.length).fill(''), constraints: prev.constraints.map(c => ({ ...c, coeffs: Array(vars.length).fill('') })) })); }} onNext={() => setView('MODELING')} onBack={() => setView('MENU')} /></div>}
+        {view === 'MODELING' && <div className="container mx-auto py-12 px-6"><ModelingScreen data={problemData} setData={setProblemData} variables={variables} onSolve={handleSolve} isSolving={isSolving} onBack={() => setView('SETUP_VARS')} /></div>}
         {view === 'ANALYSIS' && <AnalysisWorkspace variables={variables} results={results} onBack={backToHome} problemData={problemData} />}
       </main>
     </div>
