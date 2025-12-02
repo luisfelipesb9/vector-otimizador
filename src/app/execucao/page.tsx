@@ -19,7 +19,8 @@ import {
     AlertCircle
 } from 'lucide-react';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Area
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Area,
+    ComposedChart, Customized, ReferenceLine, ReferenceDot, Label, Scatter
 } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -324,15 +325,79 @@ export default function AnalysisWorkspace() {
                         {variables.length === 2 && results.graphData ? (
                             <div className="h-[500px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={results.graphData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                    <ComposedChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                        <XAxis dataKey="x" type="number" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} />
-                                        <YAxis domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} />
-                                        <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', fontFamily: 'var(--font-inter)' }} />
+                                        <XAxis type="number" dataKey="x" name={variables[0].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[0].name, position: 'insideBottomRight', offset: -10 }} />
+                                        <YAxis type="number" dataKey="y" name={variables[1].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[1].name, angle: -90, position: 'insideLeft' }} />
+                                        <RechartsTooltip
+                                            cursor={{ strokeDasharray: '3 3' }}
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-xl text-xs">
+                                                            <p className="font-bold text-slate-700 mb-1">Ponto</p>
+                                                            <p className="text-slate-500">{variables[0].name}: <span className="font-mono font-bold text-slate-900">{Number(data.x || data.cx).toFixed(2)}</span></p>
+                                                            <p className="text-slate-500">{variables[1].name}: <span className="font-mono font-bold text-slate-900">{Number(data.y || data.cy).toFixed(2)}</span></p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
                                         <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 600, fontSize: '14px' }} />
-                                        <Line type="monotone" dataKey="y" stroke="#10b981" strokeWidth={3} dot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} name="Fronteira Viável" />
-                                        <Area type="monotone" dataKey="y" fill="#10b981" stroke="none" fillOpacity={0.1} />
-                                    </LineChart>
+
+                                        {/* Feasible Region Polygon */}
+                                        <Customized component={(props: any) => {
+                                            const { xAxis, yAxis } = props;
+                                            if (!xAxis || !yAxis || !results.graphData?.feasibleRegion?.length) return null;
+
+                                            const points = results.graphData.feasibleRegion.map((p: any) =>
+                                                `${xAxis.scale(p.x)},${yAxis.scale(p.y)}`
+                                            ).join(' ');
+
+                                            return (
+                                                <polygon points={points} fill="#10b981" fillOpacity={0.2} stroke="none" />
+                                            );
+                                        }} />
+
+                                        {/* Constraint Lines */}
+                                        {results.graphData.constraints.map((c: any, i: number) => (
+                                            <ReferenceLine
+                                                key={i}
+                                                segment={c.points}
+                                                stroke={c.color}
+                                                strokeWidth={2}
+                                                label={{ value: c.name, position: 'insideTopRight', fill: c.color, fontSize: 10 }}
+                                            />
+                                        ))}
+
+                                        {/* Optimal Point */}
+                                        <ReferenceDot
+                                            x={results.graphData.optimalPoint.x}
+                                            y={results.graphData.optimalPoint.y}
+                                            r={6}
+                                            fill="#10b981"
+                                            stroke="#fff"
+                                            strokeWidth={2}
+                                            isFront={true}
+                                        >
+                                            <Label value="Ótimo" position="top" offset={10} fill="#10b981" fontWeight="bold" />
+                                        </ReferenceDot>
+
+                                        {/* Invisible Scatter to set domain if needed, or just rely on ReferenceLines/Dots if Recharts supports it. 
+                                            Recharts usually needs some data to calculate domain. 
+                                            Let's pass the feasible region vertices as Scatter to ensure they are in view. 
+                                        */}
+                                        <Scatter data={results.graphData.feasibleRegion} fill="transparent" />
+
+                                        {/* Also add constraint endpoints to scatter to ensure they are visible */}
+                                        <Scatter
+                                            data={results.graphData.constraints.flatMap((c: any) => c.points)}
+                                            fill="transparent"
+                                        />
+
+                                    </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
                         ) : (

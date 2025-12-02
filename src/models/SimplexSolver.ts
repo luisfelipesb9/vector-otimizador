@@ -358,56 +358,39 @@ export class SimplexSolver {
   }
 
   private getGraphData() {
-    // Only for 2 variables
     if (this.numVars !== 2) return null;
 
-    // Find intersection points of constraints
-    // This is a simplified generator for the frontend to plot lines
-    // We need to return lines: x2 = (rhs - a1*x1)/a2
-
-    // Actually frontend expects points for the feasible region polygon? 
-    // Or just lines? The frontend code uses `graphData: { x: number; y: number }[]` which looks like a polygon or line series.
-    // Looking at the frontend `LineChart`, it plots `y` vs `x`.
-    // It seems to expect a set of points defining the feasible region boundary or the objective line?
-
-    // Let's generate points for the constraints to be plotted as lines.
-    // But Recharts `LineChart` isn't great for multiple arbitrary lines.
-    // The frontend code shows: <Line type="monotone" dataKey="y" ... name="Fronteira Viável" />
-    // This implies it wants the vertices of the feasible region.
-
-    // 1. Find all intersection points of constraints (including axes)
-    // 2. Filter points that satisfy all constraints
-    // 3. Sort points to form a polygon
-
-    // Simplified for now: just return vertices of the feasible region found during Simplex?
-    // Simplex visits vertices. We can collect them?
-    // But Simplex might not visit ALL vertices of the region, only the path to optimal.
-
-    // Let's try to calculate vertices analytically for 2D.
-    const equations = [
-      ...this.constraints.map(c => ({ coeffs: c.coeffs, rhs: c.rhs, sign: c.sign })),
-      { coeffs: [1, 0], rhs: 0, sign: '>=' }, // x1 >= 0
-      { coeffs: [0, 1], rhs: 0, sign: '>=' }  // x2 >= 0
+    // 1. Define all boundary lines (constraints + axes)
+    // Format: a*x + b*y = rhs, sign
+    const lines = [
+      ...this.constraints.map((c, i) => ({
+        a: c.coeffs[0],
+        b: c.coeffs[1],
+        rhs: c.rhs,
+        sign: c.sign,
+        name: `R${i + 1}`,
+        color: this.getConstraintColor(i)
+      })),
+      { a: 1, b: 0, rhs: 0, sign: '>=' as ConstraintSign, name: 'x >= 0', color: '#cbd5e1' },
+      { a: 0, b: 1, rhs: 0, sign: '>=' as ConstraintSign, name: 'y >= 0', color: '#cbd5e1' }
     ];
 
+    // 2. Find all intersection points
     const points: { x: number, y: number }[] = [];
 
-    for (let i = 0; i < equations.length; i++) {
-      for (let j = i + 1; j < equations.length; j++) {
-        const eq1 = equations[i];
-        const eq2 = equations[j];
+    for (let i = 0; i < lines.length; i++) {
+      for (let j = i + 1; j < lines.length; j++) {
+        const l1 = lines[i];
+        const l2 = lines[j];
 
-        // Solve system
-        // a1*x + b1*y = c1
-        // a2*x + b2*y = c2
-        const det = eq1.coeffs[0] * eq2.coeffs[1] - eq1.coeffs[1] * eq2.coeffs[0];
+        const det = l1.a * l2.b - l1.b * l2.a;
         if (Math.abs(det) < 1e-10) continue; // Parallel
 
-        const x = (eq1.rhs * eq2.coeffs[1] - eq1.coeffs[1] * eq2.rhs) / det;
-        const y = (eq1.coeffs[0] * eq2.rhs - eq1.rhs * eq2.coeffs[0]) / det;
+        const x = (l1.rhs * l2.b - l1.b * l2.rhs) / det;
+        const y = (l1.a * l2.rhs - l1.rhs * l2.a) / det;
 
         if (this.isFeasible(x, y)) {
-          // Check if point is already added
+          // Avoid duplicates
           if (!points.some(p => Math.abs(p.x - x) < 0.001 && Math.abs(p.y - y) < 0.001)) {
             points.push({ x, y });
           }
@@ -415,32 +398,93 @@ export class SimplexSolver {
       }
     }
 
-    // Sort points by angle from center to form polygon
-    if (points.length === 0) return [];
+    // 3. Sort points to form a polygon
+    if (points.length > 0) {
+      const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+      const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+      points.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+    }
 
-    const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
-    const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+    // 4. Generate line segments for visualization
+    // Determine bounds for plotting
+    const maxX = points.length > 0 ? Math.max(...points.map(p => p.x)) * 1.5 : 10;
+    const maxY = points.length > 0 ? Math.max(...points.map(p => p.y)) * 1.5 : 10;
+    const limit = Math.max(maxX, maxY, 10);
 
-    points.sort((a, b) => {
-      return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+    const constraintLines = this.constraints.map((c, i) => {
+      const a = c.coeffs[0];
+      const b = c.coeffs[1];
+      const rhs = c.rhs;
+
+      const linePoints: { x: number, y: number }[] = [];
+
+      // Find intercepts with the bounding box (0,0) to (limit, limit)
+      // We essentially clip the line to the visible area
+
+      // If b != 0, y = (rhs - ax)/b
+      if (Math.abs(b) > 1e-10) {
+        // x = 0
+        const y0 = rhs / b;
+        if (y0 >= -1 && y0 <= limit * 1.5) linePoints.push({ x: 0, y: y0 });
+
+        // x = limit
+        const yLimit = (rhs - a * limit) / b;
+        if (yLimit >= -1 && yLimit <= limit * 1.5) linePoints.push({ x: limit, y: yLimit });
+      }
+
+      // If a != 0, x = (rhs - by)/a
+      if (Math.abs(a) > 1e-10) {
+        // y = 0
+        const x0 = rhs / a;
+        if (x0 >= -1 && x0 <= limit * 1.5) linePoints.push({ x: x0, y: 0 });
+
+        // y = limit
+        const xLimit = (rhs - b * limit) / a;
+        if (xLimit >= -1 && xLimit <= limit * 1.5) linePoints.push({ x: xLimit, y: limit });
+      }
+
+      // Sort by x to ensure correct line drawing
+      linePoints.sort((p1, p2) => p1.x - p2.x);
+
+      return {
+        name: `R${i + 1}`,
+        points: linePoints,
+        color: this.getConstraintColor(i)
+      };
     });
 
-    // Close the loop
-    points.push(points[0]);
+    // 5. Get Optimal Point
+    const optimalVars = this.getVariableValues();
+    const optimalPoint = {
+      x: optimalVars[0]?.value || 0,
+      y: optimalVars[1]?.value || 0,
+      value: this.getZValue()
+    };
 
-    return points;
+    return {
+      feasibleRegion: points,
+      constraints: constraintLines,
+      optimalPoint
+    };
   }
 
   private isFeasible(x: number, y: number): boolean {
-    if (x < -0.001 || y < -0.001) return false;
+    // Tolerance for floating point errors
+    const tol = 1e-5;
+    if (x < -tol || y < -tol) return false;
 
     return this.constraints.every(c => {
       const val = c.coeffs[0] * x + c.coeffs[1] * y;
-      if (c.sign === '<=') return val <= c.rhs + 0.001;
-      if (c.sign === '>=') return val >= c.rhs - 0.001;
-      if (c.sign === '=') return Math.abs(val - c.rhs) < 0.001;
+      if (c.sign === '<=') return val <= c.rhs + tol;
+      if (c.sign === '>=') return val >= c.rhs - tol;
+      if (c.sign === '=') return Math.abs(val - c.rhs) < tol;
       return true;
     });
+  }
+
+  private getConstraintColor(index: number): string {
+    const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+    return colors[index % colors.length];
   }
 
   // --- DUAL PROBLEM ---
