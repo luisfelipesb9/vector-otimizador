@@ -321,85 +321,136 @@ export default function AnalysisWorkspace() {
                 )}
 
                 {activeTab === 'graph' && (
-                    <div className="h-full flex flex-col animate-in zoom-in-95 bg-white rounded-2xl border border-slate-200 shadow-md p-6">
+                    <div className="h-full flex flex-col md:flex-row gap-6 animate-in zoom-in-95 bg-white rounded-2xl border border-slate-200 shadow-md p-6">
                         {variables.length === 2 && results.graphData ? (
-                            <div className="h-[500px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                        <XAxis type="number" dataKey="x" name={variables[0].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[0].name, position: 'insideBottomRight', offset: -10 }} />
-                                        <YAxis type="number" dataKey="y" name={variables[1].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[1].name, angle: -90, position: 'insideLeft' }} />
-                                        <RechartsTooltip
-                                            cursor={{ strokeDasharray: '3 3' }}
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                    const data = payload[0].payload;
-                                                    return (
-                                                        <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-xl text-xs">
-                                                            <p className="font-bold text-slate-700 mb-1">Ponto</p>
-                                                            <p className="text-slate-500">{variables[0].name}: <span className="font-mono font-bold text-slate-900">{Number(data.x || data.cx).toFixed(2)}</span></p>
-                                                            <p className="text-slate-500">{variables[1].name}: <span className="font-mono font-bold text-slate-900">{Number(data.y || data.cy).toFixed(2)}</span></p>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 600, fontSize: '14px' }} />
-
-                                        {/* Feasible Region Polygon */}
-                                        <Customized component={(props: any) => {
-                                            const { xAxis, yAxis } = props;
-                                            if (!xAxis || !yAxis || !results.graphData?.feasibleRegion?.length) return null;
-
-                                            const points = results.graphData.feasibleRegion.map((p: any) =>
-                                                `${xAxis.scale(p.x)},${yAxis.scale(p.y)}`
-                                            ).join(' ');
-
-                                            return (
-                                                <polygon points={points} fill="#10b981" fillOpacity={0.2} stroke="none" />
-                                            );
-                                        }} />
-
-                                        {/* Constraint Lines */}
-                                        {results.graphData.constraints.map((c: any, i: number) => (
-                                            <ReferenceLine
-                                                key={i}
-                                                segment={c.points}
-                                                stroke={c.color}
-                                                strokeWidth={2}
-                                                label={{ value: c.name, position: 'insideTopRight', fill: c.color, fontSize: 10 }}
+                            <>
+                                <div className="flex-1 h-[500px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis type="number" dataKey="x" name={variables[0].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[0].name, position: 'insideBottomRight', offset: -10 }} />
+                                            <YAxis type="number" dataKey="y" name={variables[1].name} unit="" domain={['auto', 'auto']} tick={{ fill: '#64748b', fontSize: 12 }} axisLine={{ stroke: '#cbd5e1' }} label={{ value: variables[1].name, angle: -90, position: 'insideLeft' }} />
+                                            <RechartsTooltip
+                                                cursor={{ strokeDasharray: '3 3' }}
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        const data = payload[0].payload;
+                                                        return (
+                                                            <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-xl text-xs">
+                                                                <p className="font-bold text-slate-700 mb-1">Ponto</p>
+                                                                <p className="text-slate-500">{variables[0].name}: <span className="font-mono font-bold text-slate-900">{Number(data.x || data.cx).toFixed(2)}</span></p>
+                                                                <p className="text-slate-500">{variables[1].name}: <span className="font-mono font-bold text-slate-900">{Number(data.y || data.cy).toFixed(2)}</span></p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
                                             />
-                                        ))}
+                                            <Legend verticalAlign="top" height={36} wrapperStyle={{ fontWeight: 600, fontSize: '14px' }} />
 
-                                        {/* Optimal Point */}
-                                        <ReferenceDot
-                                            x={results.graphData.optimalPoint.x}
-                                            y={results.graphData.optimalPoint.y}
-                                            r={6}
-                                            fill="#10b981"
-                                            stroke="#fff"
-                                            strokeWidth={2}
-                                            isFront={true}
-                                        >
-                                            <Label value="Ótimo" position="top" offset={10} fill="#10b981" fontWeight="bold" />
-                                        </ReferenceDot>
+                                            {/* Feasible Region Polygon */}
+                                            <Customized component={(props: any) => {
+                                                const { xAxis, yAxis } = props;
+                                                if (!xAxis || !yAxis || !results.graphData?.feasibleRegion?.length) return null;
 
-                                        {/* Invisible Scatter to set domain if needed, or just rely on ReferenceLines/Dots if Recharts supports it. 
+                                                const points = results.graphData.feasibleRegion.map((p: any) =>
+                                                    `${xAxis.scale(p.x)},${yAxis.scale(p.y)}`
+                                                ).join(' ');
+
+                                                return (
+                                                    <polygon points={points} fill="#10b981" fillOpacity={0.4} stroke="#059669" strokeWidth={2} />
+                                                );
+                                            }} />
+
+                                            {/* Constraint Lines */}
+                                            {results.graphData.constraints.map((c: any, i: number) => (
+                                                <ReferenceLine
+                                                    key={i}
+                                                    segment={c.points}
+                                                    stroke={c.color}
+                                                    strokeWidth={2}
+                                                    label={{ value: c.name, position: 'insideTopRight', fill: c.color, fontSize: 10 }}
+                                                />
+                                            ))}
+
+                                            {/* Objective Function Line */}
+                                            {results.graphData.objectiveLine && (
+                                                <ReferenceLine
+                                                    segment={results.graphData.objectiveLine.points}
+                                                    stroke={results.graphData.objectiveLine.color}
+                                                    strokeWidth={2}
+                                                    strokeDasharray="5 5"
+                                                    label={{ value: 'Z', position: 'insideTopRight', fill: results.graphData.objectiveLine.color, fontSize: 12, fontWeight: 'bold' }}
+                                                />
+                                            )}
+
+                                            {/* Optimal Point */}
+                                            <ReferenceDot
+                                                x={results.graphData.optimalPoint.x}
+                                                y={results.graphData.optimalPoint.y}
+                                                r={6}
+                                                fill="#10b981"
+                                                stroke="#fff"
+                                                strokeWidth={2}
+                                                isFront={true}
+                                            >
+                                                <Label value="Ótimo" position="top" offset={10} fill="#10b981" fontWeight="bold" />
+                                            </ReferenceDot>
+
+                                            {/* Invisible Scatter to set domain if needed, or just rely on ReferenceLines/Dots if Recharts supports it. 
                                             Recharts usually needs some data to calculate domain. 
                                             Let's pass the feasible region vertices as Scatter to ensure they are in view. 
                                         */}
-                                        <Scatter data={results.graphData.feasibleRegion} fill="transparent" />
+                                            <Scatter data={results.graphData.feasibleRegion} fill="transparent" dataKey="x" />
 
-                                        {/* Also add constraint endpoints to scatter to ensure they are visible */}
-                                        <Scatter
-                                            data={results.graphData.constraints.flatMap((c: any) => c.points)}
-                                            fill="transparent"
-                                        />
+                                            {/* Also add constraint endpoints to scatter to ensure they are visible */}
+                                            <Scatter
+                                                data={results.graphData.constraints.flatMap((c: any) => c.points)}
+                                                fill="transparent"
+                                                dataKey="x"
+                                            />
 
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            </div>
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Legend Side Panel */}
+                                <div className="w-full md:w-64 flex flex-col gap-4 overflow-y-auto max-h-[500px] pr-2">
+                                    <h3 className="font-bold text-slate-700 border-b border-slate-100 pb-2">Legenda</h3>
+
+                                    {/* Objective Function */}
+                                    {results.graphData.objectiveLine && (
+                                        <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                                            <div className="w-4 h-0.5 border-t-2 border-dashed border-slate-900"></div>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-900">Função Objetivo</span>
+                                                <span className="text-[10px] font-mono text-slate-500">{results.graphData.objectiveLine.equation}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Constraints */}
+                                    {results.graphData.constraints.map((c: any, i: number) => (
+                                        <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-100 shadow-sm">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }}></div>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-700">{c.name}</span>
+                                                <span className="text-[10px] font-mono text-slate-500">{c.equation}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-3 h-3 bg-emerald-500/40 border border-emerald-600 rounded-sm"></div>
+                                            <span className="text-xs font-bold text-emerald-800">Região Viável</span>
+                                        </div>
+                                        <p className="text-[10px] text-emerald-600 leading-tight">
+                                            Área onde todas as restrições são satisfeitas simultaneamente.
+                                        </p>
+                                    </div>
+                                </div>
+                            </>
                         ) : (
                             <div className="h-full flex items-center justify-center flex-col text-slate-400 p-12 text-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
                                 <div className="bg-white p-6 rounded-full mb-4 shadow-sm">

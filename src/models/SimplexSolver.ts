@@ -369,10 +369,11 @@ export class SimplexSolver {
         rhs: c.rhs,
         sign: c.sign,
         name: `R${i + 1}`,
-        color: this.getConstraintColor(i)
+        color: this.getConstraintColor(i),
+        equation: `${c.coeffs[0]}x + ${c.coeffs[1]}y ${c.sign} ${c.rhs}`
       })),
-      { a: 1, b: 0, rhs: 0, sign: '>=' as ConstraintSign, name: 'x >= 0', color: '#cbd5e1' },
-      { a: 0, b: 1, rhs: 0, sign: '>=' as ConstraintSign, name: 'y >= 0', color: '#cbd5e1' }
+      { a: 1, b: 0, rhs: 0, sign: '>=' as ConstraintSign, name: 'x >= 0', color: '#cbd5e1', equation: 'x >= 0' },
+      { a: 0, b: 1, rhs: 0, sign: '>=' as ConstraintSign, name: 'y >= 0', color: '#cbd5e1', equation: 'y >= 0' }
     ];
 
     // 2. Find all intersection points
@@ -407,9 +408,21 @@ export class SimplexSolver {
 
     // 4. Generate line segments for visualization
     // Determine bounds for plotting
-    const maxX = points.length > 0 ? Math.max(...points.map(p => p.x)) * 1.5 : 10;
-    const maxY = points.length > 0 ? Math.max(...points.map(p => p.y)) * 1.5 : 10;
-    const limit = Math.max(maxX, maxY, 10);
+    // 5. Get Optimal Point (moved up for bounds calculation)
+    const optimalVars = this.getVariableValues();
+    const optimalPoint = {
+      x: optimalVars[0]?.value || 0,
+      y: optimalVars[1]?.value || 0,
+      value: this.getZValue()
+    };
+
+    const maxX = points.length > 0 ? Math.max(...points.map(p => p.x)) : 0;
+    const maxY = points.length > 0 ? Math.max(...points.map(p => p.y)) : 0;
+
+    // Ensure bounds cover feasible region AND optimal point
+    const limitX = Math.max(maxX, optimalPoint.x, 10) * 1.5;
+    const limitY = Math.max(maxY, optimalPoint.y, 10) * 1.5;
+    const limit = Math.max(limitX, limitY);
 
     const constraintLines = this.constraints.map((c, i) => {
       const a = c.coeffs[0];
@@ -449,21 +462,56 @@ export class SimplexSolver {
       return {
         name: `R${i + 1}`,
         points: linePoints,
-        color: this.getConstraintColor(i)
+        color: this.getConstraintColor(i),
+        equation: `${Number(a).toFixed(2).replace(/\.00$/, '')}x + ${Number(b).toFixed(2).replace(/\.00$/, '')}y ${c.sign} ${Number(rhs).toFixed(2).replace(/\.00$/, '')}`
       };
     });
 
-    // 5. Get Optimal Point
-    const optimalVars = this.getVariableValues();
-    const optimalPoint = {
-      x: optimalVars[0]?.value || 0,
-      y: optimalVars[1]?.value || 0,
-      value: this.getZValue()
+    // 6. Calculate Objective Function Line (Z = c1*x + c2*y)
+    // We want to draw the line passing through the optimal point.
+    // c1*x + c2*y = Z_optimal
+    const zVal = this.getZValue();
+    const c1 = this.originalObjective[0];
+    const c2 = this.originalObjective[1];
+
+    const objLinePoints: { x: number, y: number }[] = [];
+
+    // Intercepts for Objective Line within limits
+    if (Math.abs(c2) > 1e-10) {
+      // x = 0 => y = (Z - c1*0)/c2
+      const y0 = zVal / c2;
+      if (y0 >= -limit && y0 <= limit * 1.5) objLinePoints.push({ x: 0, y: y0 });
+
+      // x = limit => y = (Z - c1*limit)/c2
+      const yLimit = (zVal - c1 * limit) / c2;
+      if (yLimit >= -limit && yLimit <= limit * 1.5) objLinePoints.push({ x: limit, y: yLimit });
+    }
+
+    if (Math.abs(c1) > 1e-10) {
+      // y = 0 => x = (Z - c2*0)/c1
+      const x0 = zVal / c1;
+      if (x0 >= -limit && x0 <= limit * 1.5) objLinePoints.push({ x: x0, y: 0 });
+
+      // y = limit => x = (Z - c2*limit)/c1
+      const xLimit = (zVal - c2 * limit) / c1;
+      if (xLimit >= -limit && xLimit <= limit * 1.5) objLinePoints.push({ x: xLimit, y: limit });
+    }
+
+    objLinePoints.sort((p1, p2) => p1.x - p2.x);
+
+    const objectiveLine = {
+      name: 'Função Objetivo',
+      points: objLinePoints,
+      color: '#000000', // Black or dark gray
+      equation: `${c1}x + ${c2}y = ${Number(zVal).toFixed(2)}`
     };
+
+    // Optimal Point is already calculated above
 
     return {
       feasibleRegion: points,
       constraints: constraintLines,
+      objectiveLine,
       optimalPoint
     };
   }

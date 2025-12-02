@@ -7,9 +7,10 @@ export interface SimplexResult {
     iterations?: any[];
     status?: string;
     isMock?: boolean;
-    graphData?: {
-        feasibleRegion: { x: number; y: number }[];
-        constraints: { name: string; points: { x: number; y: number }[]; color: string }[];
-        optimalPoint: { x: number; y: number; value: number };
+    graphData: {
+        feasibleRegion: { x: number, y: number }[];
+        constraints: { name: string, points: { x: number, y: number }[], color: string, equation?: string }[];
+        objectiveLine?: { name: string, points: { x: number, y: number }[], color: string, equation?: string };
+        optimalPoint: { x: number, y: number, value: number };
     } | null;
 }
