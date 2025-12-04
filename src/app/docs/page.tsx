@@ -70,8 +70,7 @@ export default function DocsPage() {
                                 { id: 'intro', label: 'Visão Geral' },
                                 { id: 'tech', label: 'Tecnologias' },
                                 { id: 'features', label: 'Funcionalidades' },
-                                { id: 'algorithms', label: 'Algoritmos' },
-                                { id: 'team', label: 'Equipe' }
+                                { id: 'algorithms', label: 'Algoritmos' }
                             ].map((item) => (
                                 <button
                                     key={item.id}
@@ -88,9 +87,14 @@ export default function DocsPage() {
                     <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
                         <h5 className="font-bold text-slate-900 mb-2">Precisa de ajuda?</h5>
                         <p className="text-sm text-slate-500 mb-4">Confira o repositório oficial para reportar bugs.</p>
-                        <button className="w-full py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:border-slate-300 shadow-sm transition-colors">
+                        <a
+                            href="https://github.com/luisfelipesb9/vector-otimizador"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full text-center py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:border-slate-300 shadow-sm transition-colors"
+                        >
                             Abrir GitHub
-                        </button>
+                        </a>
                     </div>
                 </aside>
 
@@ -106,7 +110,7 @@ export default function DocsPage() {
                             Diferente de ferramentas tradicionais baseadas em linha de comando ou interfaces datadas, o Vector foca na <span className="text-blue-600 font-bold bg-blue-50 px-1 rounded">Experiência do Usuário (UX)</span> e na visualização de dados, tornando o aprendizado de conceitos complexos como Dualidade e Sensibilidade mais acessível.
                         </p>
                         <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800 text-sm flex gap-4 items-start">
-                            <div className="p-2 bg-emerald-100 rounded-lg shrink-0"><Monitor size={20}/></div>
+                            <div className="p-2 bg-emerald-100 rounded-lg shrink-0"><Monitor size={20} /></div>
                             <div>
                                 <strong className="block text-base mb-1">Objetivo Acadêmico</strong>
                                 Fornecer uma ferramenta gratuita, open-source e moderna para estudantes de engenharia e matemática, preenchendo a lacuna entre teoria e prática.
@@ -123,7 +127,7 @@ export default function DocsPage() {
                         <div className="grid sm:grid-cols-2 gap-6 mb-6">
                             <div className="p-6 border border-slate-200 rounded-2xl hover:border-blue-300 hover:shadow-md transition-all bg-white">
                                 <div className="flex items-center gap-3 font-bold text-slate-900 mb-4 text-lg">
-                                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Monitor size={20}/></div>
+                                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Monitor size={20} /></div>
                                     Front-end
                                 </div>
                                 <ul className="space-y-3">
@@ -135,7 +139,7 @@ export default function DocsPage() {
                             </div>
                             <div className="p-6 border border-slate-200 rounded-2xl hover:border-emerald-300 hover:shadow-md transition-all bg-white">
                                 <div className="flex items-center gap-3 font-bold text-slate-900 mb-4 text-lg">
-                                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Database size={20}/></div>
+                                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Database size={20} /></div>
                                     Back-end & Infra
                                 </div>
                                 <ul className="space-y-3">

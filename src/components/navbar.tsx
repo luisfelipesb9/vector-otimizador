@@ -51,6 +51,10 @@ export function Navbar() {
 
     const showSteps = !isHome && !isAuthPage && pathname !== '/menu' && pathname !== '/linear';
 
+    const hideNavbarPaths = ['/', '/login', '/register', '/linear', '/setup', '/modeling', '/execucao'];
+
+    if (hideNavbarPaths.includes(pathname)) return null;
+
     return (
         <header className="bg-white border-b h-20 flex items-center justify-between px-8 sticky top-0 z-50 shadow-sm">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>

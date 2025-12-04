@@ -51,6 +51,10 @@ export default function HomeScreen() {
 
   // Lógica de Upload via Controller
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -204,7 +208,13 @@ export default function HomeScreen() {
                   <Button
                     variant="outline"
                     className="h-14 px-8 text-lg rounded-full border-2 border-slate-200 hover:border-blue-200 text-slate-600 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all w-full sm:w-auto"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      if (!user) {
+                        router.push('/login');
+                      } else {
+                        fileInputRef.current?.click();
+                      }
+                    }}
                   >
                     Carregar Arquivo
                   </Button>
@@ -353,7 +363,7 @@ export default function HomeScreen() {
 
             <div className="flex gap-6 text-sm font-medium">
               <a href="https://github.com/luisfelipesb9/vector-otimizador" className="hover:text-white transition-colors">Github</a>
-              <a href="#" className="hover:text-white transition-colors">Documentação</a>
+              <a href="/docs" className="hover:text-white transition-colors">Documentação</a>
             </div>
           </div>
         </div>

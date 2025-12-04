@@ -52,25 +52,6 @@ export default function MenuPage() {
             {/* Background Decorativo (Consistente) */}
             <div className="absolute inset-0 -z-10 h-full w-full bg-white bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
 
-            {/* --- HEADER SIMPLES --- */}
-            <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center p-1 bg-slate-100 border border-slate-200">
-                            {/* Fallback de Logo */}
-                            <img src="/logo-vector.png" alt="Vector" className="w-full h-full object-contain" />
-                        </div>
-                        <span className="text-lg font-bold tracking-tight text-slate-800">Vector <span className="text-slate-400 font-normal">Workspace</span></span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors">
-                            <LogOut size={18} className="mr-2" /> Sair
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
             {/* --- CONTEÚDO PRINCIPAL --- */}
             <main className="flex-1 container mx-auto px-4 py-12 max-w-6xl">
 

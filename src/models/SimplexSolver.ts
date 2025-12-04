@@ -34,7 +34,7 @@ export class SimplexSolver {
   private nonBasicVars: number[] = []; // Indices of non-basic variables
   private colHeaders: string[] = [];
   private iterations: Iteration[] = [];
-  private M = 100000; // Big M value if needed, though we prefer Two-Phase
+  private M = 100000; // Big M value
 
   constructor(
     type: OptimizationType,
@@ -51,10 +51,9 @@ export class SimplexSolver {
 
   public solve(): SimplexResult {
     // 1. Convert to Standard Form
-    // This involves adding slack, surplus, and artificial variables
     this.initializeTableau();
 
-    // 2. Solve (Phase 1 if needed, then Phase 2)
+    // 2. Solve
     let status = 'Otimizado';
     try {
       this.runSimplexIterations();
@@ -62,10 +61,80 @@ export class SimplexSolver {
       status = e.message;
     }
 
+    // Check for Infeasibility (Artificial Variables in Basis > 0)
+    if (status === 'Otimizado') {
+      const artificialIndices = this.colHeaders
+        .map((h, i) => h.startsWith('A') ? i : -1)
+        .filter(i => i !== -1);
+
+      if (artificialIndices.length > 0) {
+        const hasPositiveArtificial = artificialIndices.some(aIdx => {
+          const rowIdx = this.basicVars.indexOf(aIdx);
+          if (rowIdx !== -1) {
+            const val = this.tableau[rowIdx][this.tableau[0].length - 1];
+            return val > 1e-5;
+          }
+          return false;
+        });
+
+        if (hasPositiveArtificial) {
+          status = 'Inviável';
+        }
+      }
+    }
+
     // 3. Extract Results
     const zValue = this.getZValue();
     const variables = this.getVariableValues();
     const shadowPrices = this.getShadowPrices();
+
+    // Check for Multiple Solutions
+    let multipleSolutions = false;
+    let alternativeSolutions: Variable[][] | undefined = undefined;
+
+    if (status === 'Otimizado') {
+      const zRow = this.tableau[this.tableau.length - 1];
+      // Check non-basic variables with 0 reduced cost
+      const nonBasicZeroReducedCost = this.colHeaders.map((header, colIdx) => {
+        // Skip basic variables
+        if (this.basicVars.includes(colIdx)) return -1;
+        // Skip RHS
+        if (colIdx === this.tableau[0].length - 1) return -1;
+        // Check reduced cost (tolerance 1e-5)
+        if (Math.abs(zRow[colIdx]) < 1e-5) return colIdx;
+        return -1;
+      }).filter(idx => idx !== -1);
+
+      if (nonBasicZeroReducedCost.length > 0) {
+        multipleSolutions = true;
+        // Calculate alternative solution by pivoting on the first candidate
+        try {
+          const altSolver = this.clone();
+          const enteringCol = nonBasicZeroReducedCost[0];
+          // Find leaving row
+          let leavingRow = -1;
+          let minRatio = Infinity;
+          for (let i = 0; i < altSolver.tableau.length - 1; i++) {
+            const rhs = altSolver.tableau[i][altSolver.tableau[0].length - 1];
+            const coeff = altSolver.tableau[i][enteringCol];
+            if (coeff > 1e-5) {
+              const ratio = rhs / coeff;
+              if (ratio < minRatio) {
+                minRatio = ratio;
+                leavingRow = i;
+              }
+            }
+          }
+          if (leavingRow !== -1) {
+            altSolver.pivot(leavingRow, enteringCol);
+            altSolver.basicVars[leavingRow] = enteringCol;
+            alternativeSolutions = [altSolver.getVariableValues()];
+          }
+        } catch (e) {
+          console.warn("Failed to calculate alternative solution", e);
+        }
+      }
+    }
 
     return {
       status,
@@ -74,8 +143,19 @@ export class SimplexSolver {
       shadowPrices,
       iterations: this.iterations,
       isMock: false,
-      graphData: this.numVars === 2 ? this.getGraphData() : null
+      graphData: this.numVars === 2 ? this.getGraphData() : null,
+      multipleSolutions,
+      alternativeSolutions
     };
+  }
+
+  private clone(): SimplexSolver {
+    const newSolver = new SimplexSolver(this.type, [...this.variableNames], [...this.originalObjective], this.constraints.map(c => ({ ...c, coeffs: [...c.coeffs] })));
+    newSolver.tableau = this.tableau.map(row => [...row]);
+    newSolver.basicVars = [...this.basicVars];
+    newSolver.colHeaders = [...this.colHeaders];
+    newSolver.iterations = [];
+    return newSolver;
   }
 
   private initializeTableau() {
@@ -84,7 +164,6 @@ export class SimplexSolver {
     // s.t. A*x = b, x >= 0
 
     // If MIN, convert to MAX: Min Z <=> Max -Z
-    // We will handle MIN by flipping objective coefficients initially and flipping Z back at the end.
     const objCoeffs = this.type === 'MIN'
       ? this.originalObjective.map(c => -c)
       : [...this.originalObjective];
@@ -101,11 +180,7 @@ export class SimplexSolver {
     });
 
     const totalCols = this.numVars + numSlack + numSurplus + numArtificial + 1; // +1 for RHS
-    // Rows = constraints + 1 (Z row)
-    // Actually for Two-Phase, we might need a W row (Phase 1 objective)
 
-    // Let's build the rows.
-    // We need to track variable names for columns
     this.colHeaders = [...this.variableNames];
 
     // Add Slack/Surplus/Artificial names
@@ -159,22 +234,14 @@ export class SimplexSolver {
       this.tableau[numRows - 1][j] = -objCoeffs[j];
     }
 
-    // If we have artificial variables, we need Phase 1 or Big M.
-    // Let's use Big M for simplicity in single tableau structure, 
-    // but implemented carefully. 
-    // Actually, Big M is easier to code in a single pass than Two-Phase for this specific structure.
-    // M method: Penalize artificial variables in objective function.
-    // Max Z = ... - M*A1 - M*A2 ...
-    // In row 0: Z + ... + M*A1 + M*A2 ... = 0
-    // We need to eliminate M from basic columns (Artificials) by row operations.
-
+    // Big M Method for Artificial Variables
     if (artificialIndices.length > 0) {
       artificialIndices.forEach(aIdx => {
-        // Add M to Z-row for artificial variable column (because we moved it to LHS: Z - (-M)A = Z + MA)
-        // Wait, Max Z = cx - M*A  => Z - cx + M*A = 0. So coeff is +M.
+        // Add M to Z-row for artificial variable column
+        // Max Z = cx - M*A  => Z - cx + M*A = 0. So coeff is +M.
         this.tableau[numRows - 1][aIdx] = this.M;
 
-        // Now eliminate this M using the constraint row where A is basic
+        // Eliminate M from basic columns
         const rowIdx = this.basicVars.indexOf(aIdx);
         if (rowIdx !== -1) {
           const pivotRow = this.tableau[rowIdx];
@@ -195,12 +262,9 @@ export class SimplexSolver {
 
     while (iterCount < maxIterations) {
       // 1. Check Optimality
-      // For Max problem, if all Z-row coeffs >= 0, we are optimal.
-      // (Since we have Z - cx = 0, negative coeff means we can increase Z by increasing x)
-
       const zRow = this.tableau[this.tableau.length - 1];
       let enteringCol = -1;
-      let minVal = 0;
+      let minVal = -1e-9; // Tolerance
 
       // Find most negative coefficient
       for (let j = 0; j < zRow.length - 1; j++) { // Exclude RHS
@@ -222,7 +286,7 @@ export class SimplexSolver {
         const rhs = this.tableau[i][this.tableau[0].length - 1];
         const coeff = this.tableau[i][enteringCol];
 
-        if (coeff > 0) {
+        if (coeff > 1e-9) {
           const ratio = rhs / coeff;
           if (ratio < minRatio) {
             minRatio = ratio;
@@ -275,12 +339,9 @@ export class SimplexSolver {
   private recordIteration(enteringCol?: number, leavingRow?: number) {
     const zRow = [...this.tableau[this.tableau.length - 1]];
     const rows = this.tableau.slice(0, this.tableau.length - 1).map(row => [...row]);
-
-    // Map basic vars indices to names
     const base = this.basicVars.map(idx => this.colHeaders[idx]);
-
     let enteringVar = enteringCol !== undefined ? this.colHeaders[enteringCol] : undefined;
-    let leavingVar = leavingRow !== undefined ? this.colHeaders[this.basicVars[leavingRow]] : undefined; // Note: this is pre-update if called before update
+    let leavingVar = leavingRow !== undefined ? this.colHeaders[this.basicVars[leavingRow]] : undefined;
 
     this.iterations.push({
       id: this.iterations.length + 1,
@@ -296,16 +357,11 @@ export class SimplexSolver {
 
   private getZValue(): number {
     let z = this.tableau[this.tableau.length - 1][this.tableau[0].length - 1];
-    // If MIN, we maximized -Z, so Z_optimal = -Z_max
-    // But wait, in the tableau Z row is: Z + ... = RHS. So Z = RHS - ...
-    // If we are optimal, non-basic are 0. So Z = RHS.
-    // If MIN, we used -c. Max (-Z). So final RHS is (-Z)*. Thus Z* = -RHS.
     return this.type === 'MIN' ? -z : z;
   }
 
   private getVariableValues(): Variable[] {
     const values = this.variableNames.map((name, i) => {
-      // Check if variable is basic
       const rowIdx = this.basicVars.indexOf(i);
       if (rowIdx !== -1) {
         return {
@@ -321,47 +377,31 @@ export class SimplexSolver {
   }
 
   private getShadowPrices(): number[] {
-    // Shadow prices are found in the Z-row under the slack/surplus variables of the initial basis.
-    // This is a bit complex to extract generically without tracking which column corresponds to which constraint's slack.
-    // Simplified: Just take the Z-row values for the slack columns.
-    // Assuming Slacks are added in order after decision vars.
     const shadowPrices: number[] = [];
     let colIdx = this.numVars;
 
     this.constraints.forEach(c => {
-      // If <=, slack is at colIdx.
-      // If >=, surplus at colIdx, artificial at colIdx+1.
-      // If =, artificial at colIdx.
-
-      // The shadow price is usually the value in Z-row for the slack/artificial variable associated with the constraint.
-      // For <= constraint (Slack S): Shadow Price = Coeff of S in Z-row.
-      // For >= constraint (Surplus E, Artificial A): Shadow Price is related to A? Or E?
-      // Actually, for >=, it's often the Artificial variable's reduced cost if A is non-basic?
-      // Let's stick to simple extraction for now:
-
       if (c.sign === '<=') {
-        shadowPrices.push(this.tableau[this.tableau.length - 1][colIdx]);
+        let val = this.tableau[this.tableau.length - 1][colIdx];
+        shadowPrices.push(this.type === 'MIN' ? -val : val);
         colIdx++;
       } else if (c.sign === '>=') {
-        // For >=, we have Surplus and Artificial.
-        // The shadow price is typically found under the slack/surplus column but sign might be flipped.
-        shadowPrices.push(this.tableau[this.tableau.length - 1][colIdx]); // Surplus
+        let val = this.tableau[this.tableau.length - 1][colIdx];
+        shadowPrices.push(this.type === 'MIN' ? -val : -val);
         colIdx += 2;
       } else {
-        shadowPrices.push(this.tableau[this.tableau.length - 1][colIdx]); // Artificial
+        let val = this.tableau[this.tableau.length - 1][colIdx];
+        shadowPrices.push(this.type === 'MIN' ? -val : val);
         colIdx++;
       }
     });
 
-    // Adjust for MIN/MAX if needed
     return shadowPrices;
   }
 
   private getGraphData() {
     if (this.numVars !== 2) return null;
 
-    // 1. Define all boundary lines (constraints + axes)
-    // Format: a*x + b*y = rhs, sign
     const lines = [
       ...this.constraints.map((c, i) => ({
         a: c.coeffs[0],
@@ -376,22 +416,17 @@ export class SimplexSolver {
       { a: 0, b: 1, rhs: 0, sign: '>=' as ConstraintSign, name: 'y >= 0', color: '#cbd5e1', equation: 'y >= 0' }
     ];
 
-    // 2. Find all intersection points
     const points: { x: number, y: number }[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       for (let j = i + 1; j < lines.length; j++) {
         const l1 = lines[i];
         const l2 = lines[j];
-
         const det = l1.a * l2.b - l1.b * l2.a;
-        if (Math.abs(det) < 1e-10) continue; // Parallel
-
+        if (Math.abs(det) < 1e-10) continue;
         const x = (l1.rhs * l2.b - l1.b * l2.rhs) / det;
         const y = (l1.a * l2.rhs - l1.rhs * l2.a) / det;
-
         if (this.isFeasible(x, y)) {
-          // Avoid duplicates
           if (!points.some(p => Math.abs(p.x - x) < 0.001 && Math.abs(p.y - y) < 0.001)) {
             points.push({ x, y });
           }
@@ -399,16 +434,12 @@ export class SimplexSolver {
       }
     }
 
-    // 3. Sort points to form a polygon
     if (points.length > 0) {
       const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
       const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
       points.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
     }
 
-    // 4. Generate line segments for visualization
-    // Determine bounds for plotting
-    // 5. Get Optimal Point (moved up for bounds calculation)
     const optimalVars = this.getVariableValues();
     const optimalPoint = {
       x: optimalVars[0]?.value || 0,
@@ -418,8 +449,6 @@ export class SimplexSolver {
 
     const maxX = points.length > 0 ? Math.max(...points.map(p => p.x)) : 0;
     const maxY = points.length > 0 ? Math.max(...points.map(p => p.y)) : 0;
-
-    // Ensure bounds cover feasible region AND optimal point
     const limitX = Math.max(maxX, optimalPoint.x, 10) * 1.5;
     const limitY = Math.max(maxY, optimalPoint.y, 10) * 1.5;
     const limit = Math.max(limitX, limitY);
@@ -428,37 +457,20 @@ export class SimplexSolver {
       const a = c.coeffs[0];
       const b = c.coeffs[1];
       const rhs = c.rhs;
-
       const linePoints: { x: number, y: number }[] = [];
-
-      // Find intercepts with the bounding box (0,0) to (limit, limit)
-      // We essentially clip the line to the visible area
-
-      // If b != 0, y = (rhs - ax)/b
       if (Math.abs(b) > 1e-10) {
-        // x = 0
         const y0 = rhs / b;
         if (y0 >= -1 && y0 <= limit * 1.5) linePoints.push({ x: 0, y: y0 });
-
-        // x = limit
         const yLimit = (rhs - a * limit) / b;
         if (yLimit >= -1 && yLimit <= limit * 1.5) linePoints.push({ x: limit, y: yLimit });
       }
-
-      // If a != 0, x = (rhs - by)/a
       if (Math.abs(a) > 1e-10) {
-        // y = 0
         const x0 = rhs / a;
         if (x0 >= -1 && x0 <= limit * 1.5) linePoints.push({ x: x0, y: 0 });
-
-        // y = limit
         const xLimit = (rhs - b * limit) / a;
         if (xLimit >= -1 && xLimit <= limit * 1.5) linePoints.push({ x: xLimit, y: limit });
       }
-
-      // Sort by x to ensure correct line drawing
       linePoints.sort((p1, p2) => p1.x - p2.x);
-
       return {
         name: `R${i + 1}`,
         points: linePoints,
@@ -467,46 +479,30 @@ export class SimplexSolver {
       };
     });
 
-    // 6. Calculate Objective Function Line (Z = c1*x + c2*y)
-    // We want to draw the line passing through the optimal point.
-    // c1*x + c2*y = Z_optimal
     const zVal = this.getZValue();
     const c1 = this.originalObjective[0];
     const c2 = this.originalObjective[1];
-
     const objLinePoints: { x: number, y: number }[] = [];
-
-    // Intercepts for Objective Line within limits
     if (Math.abs(c2) > 1e-10) {
-      // x = 0 => y = (Z - c1*0)/c2
       const y0 = zVal / c2;
       if (y0 >= -limit && y0 <= limit * 1.5) objLinePoints.push({ x: 0, y: y0 });
-
-      // x = limit => y = (Z - c1*limit)/c2
       const yLimit = (zVal - c1 * limit) / c2;
       if (yLimit >= -limit && yLimit <= limit * 1.5) objLinePoints.push({ x: limit, y: yLimit });
     }
-
     if (Math.abs(c1) > 1e-10) {
-      // y = 0 => x = (Z - c2*0)/c1
       const x0 = zVal / c1;
       if (x0 >= -limit && x0 <= limit * 1.5) objLinePoints.push({ x: x0, y: 0 });
-
-      // y = limit => x = (Z - c2*limit)/c1
       const xLimit = (zVal - c2 * limit) / c1;
       if (xLimit >= -limit && xLimit <= limit * 1.5) objLinePoints.push({ x: xLimit, y: limit });
     }
-
     objLinePoints.sort((p1, p2) => p1.x - p2.x);
 
     const objectiveLine = {
       name: 'Função Objetivo',
       points: objLinePoints,
-      color: '#000000', // Black or dark gray
+      color: '#000000',
       equation: `${c1}x + ${c2}y = ${Number(zVal).toFixed(2)}`
     };
-
-    // Optimal Point is already calculated above
 
     return {
       feasibleRegion: points,
@@ -517,10 +513,8 @@ export class SimplexSolver {
   }
 
   private isFeasible(x: number, y: number): boolean {
-    // Tolerance for floating point errors
     const tol = 1e-5;
     if (x < -tol || y < -tol) return false;
-
     return this.constraints.every(c => {
       const val = c.coeffs[0] * x + c.coeffs[1] * y;
       if (c.sign === '<=') return val <= c.rhs + tol;
@@ -537,78 +531,147 @@ export class SimplexSolver {
 
   // --- DUAL PROBLEM ---
   public getDual(): any {
-    // Primal: Max Z = CX, s.t. AX <= b
-    // Dual: Min W = bY, s.t. A'Y >= C
+    const dualType = this.type === 'MAX' ? 'MIN' : 'MAX';
+    const numDualVars = this.constraints.length;
+    const numDualConstraints = this.numVars;
 
-    // We need to handle mixed constraints carefully.
-    // Standard Canonical Form for Dual conversion usually assumes:
-    // Max Z, all <= constraints, all x >= 0.
+    // Dual Variables (y1, y2...)
+    const dualVariables = this.constraints.map((c, i) => {
+      let sign = '>= 0';
+      if (this.type === 'MAX') {
+        if (c.sign === '<=') sign = '>= 0';
+        else if (c.sign === '>=') sign = '<= 0';
+        else sign = 'Livre';
+      } else { // Primal MIN
+        if (c.sign === '>=') sign = '>= 0';
+        else if (c.sign === '<=') sign = '<= 0';
+        else sign = 'Livre';
+      }
+      return { name: `y${i + 1}`, sign };
+    });
 
-    // Our constraints have signs.
-    // Rule of thumb:
-    // Primal Max -> Dual Min
-    // Constraints:
-    // <=  ->  Dual Var >= 0
-    // >=  ->  Dual Var <= 0
-    // =   ->  Dual Var Unrestricted
+    // Dual Constraints
+    // Transpose A
+    const dualConstraints = [];
+    for (let j = 0; j < this.numVars; j++) {
+      const coeffs = [];
+      for (let i = 0; i < this.constraints.length; i++) {
+        coeffs.push(this.constraints[i].coeffs[j]);
+      }
+      // RHS is Primal Objective Coeff
+      const rhs = this.originalObjective[j];
 
-    // Variables:
-    // >= 0 -> Dual Constraint >=
-    // <= 0 -> Dual Constraint <=
-    // Unr  -> Dual Constraint =
+      const sign = this.type === 'MAX' ? '>=' : '<=';
 
-    // Since our variables are always >= 0 (standard LP), Dual constraints are always >= (for Min Dual).
-    // Wait, if Primal is Max:
-    // Primal Var x_j >= 0  --> Dual Constraint j is >= (if Dual is Min)
-
-    // Let's just construct the data structure for the frontend to display.
-    // The frontend `DualAnalyzer` expects `problemData` structure but "transposed".
-    // Actually the frontend `DualAnalyzer` does the transposition logic itself visually!
-    // It takes `problemData` (the primal) and shows the dual.
-    // So we don't strictly need to solve the dual here if the frontend just displays it?
-    // But the user asked for "Solução tabular dual".
-    // This implies we need to SOLVE the dual and show the tableau?
-    // Or just show the dual problem formulation?
-    // "apresentação de solução tabular dual terá bonificação de 3 pontos"
-    // This likely means showing the Dual Simplex Tableau or the final Dual solution.
-    // The final Dual solution (Shadow Prices) is already extracted from the Primal Z-row!
-    // So we have the Dual Solution values (W* = Z*, y* = shadow prices).
+      dualConstraints.push({ coeffs, sign, rhs });
+    }
 
     return {
-      // We can return specific dual data if needed, but shadowPrices covers the solution.
+      type: dualType,
+      variables: dualVariables,
+      constraints: dualConstraints,
+      objective: this.constraints.map(c => c.rhs) // Dual Obj Coeffs are Primal RHS
     };
   }
 
-  // --- INTEGER SOLUTION (Branch and Bound) ---
+  // --- INTEGER SOLUTION (Branch and Bound - DFS & Most Fractional) ---
   public solveInteger(): SimplexResult | null {
-    // Simple Branch and Bound
-    // 1. Solve Relaxed (current solution)
-    // 2. If all vars are integer, done.
-    // 3. Pick non-integer var, branch: x <= floor(x) OR x >= ceil(x)
-    // 4. Solve both, pick best.
+    // Stack for DFS (LIFO)
+    const stack: { constraints: Constraint[], zBound: number }[] = [];
+    stack.push({ constraints: this.constraints, zBound: Infinity });
 
-    // This is recursive and expensive. We'll implement a shallow version or limited depth.
+    let bestIntegerSolution: SimplexResult | null = null;
+    let bestIntegerZ = this.type === 'MAX' ? -Infinity : Infinity;
+    const maxIterations = 5000;
+    let iter = 0;
 
-    // For this assignment, we might just need to show we CAN propose an integer solution.
-    // Let's try to implement a basic recursive B&B.
+    while (stack.length > 0 && iter < maxIterations) {
+      iter++;
+      const current = stack.pop()!; // DFS: Pop from end
 
-    // Note: This modifies the solver state, so we should clone or be careful.
-    // Better to create new Solver instances for branches.
+      // Solve relaxed problem
+      const solver = new SimplexSolver(this.type, this.variableNames, this.originalObjective, current.constraints);
+      let result;
+      try {
+        result = solver.solve();
+      } catch (e) {
+        continue; // Infeasible
+      }
 
-    return this.branchAndBound(this.constraints, this.getZValue());
-  }
+      if (result.status !== 'Otimizado') continue;
 
-  private branchAndBound(constraints: Constraint[], bestZ: number): SimplexResult | null {
-    // This is a placeholder for the complex B&B logic.
-    // Implementing full B&B in a single file without a robust state management is tricky.
-    // Given the scope, maybe we just round the variables for a heuristic "Integer Solution" 
-    // or do one level of branching if the user specifically asked for "possible integer solution".
-    // "propor uma possível solução inteira" -> "propose a POSSIBLE integer solution".
-    // It doesn't explicitly say "Optimal Integer Solution", but "Solução Inteira Ótima" gives bonus points.
+      // Pruning (Bounding)
+      if (this.type === 'MAX' && result.zValue <= bestIntegerZ) continue;
+      if (this.type === 'MIN' && result.zValue >= bestIntegerZ) continue;
 
-    // Let's skip full implementation for now and rely on the frontend "Integer" tab 
-    // which currently just floors the values (heuristic). 
-    // I will improve this later if time permits.
-    return null;
+      // Check Integer Feasibility
+      const nonIntegerVars = result.variables.filter(v => {
+        const val = v.value || 0;
+        return Math.abs(val - Math.round(val)) > 1e-5;
+      });
+
+      if (nonIntegerVars.length === 0) {
+        // Integer Solution Found
+        // Update Best Known
+        if (this.type === 'MAX' && result.zValue > bestIntegerZ) {
+          bestIntegerZ = result.zValue;
+          bestIntegerSolution = result;
+        } else if (this.type === 'MIN' && result.zValue < bestIntegerZ) {
+          bestIntegerZ = result.zValue;
+          bestIntegerSolution = result;
+        }
+      } else {
+        // Branching
+        // Rule: Most Fractional Variable (closest to 0.5)
+        let branchVar = nonIntegerVars[0];
+        let maxFrac = -1;
+
+        nonIntegerVars.forEach(v => {
+          const val = v.value || 0;
+          const frac = Math.abs(val - Math.round(val));
+          if (frac > maxFrac) {
+            maxFrac = frac;
+            branchVar = v;
+          }
+        });
+
+        const val = branchVar.value || 0;
+        const varIndex = branchVar.id - 1;
+        const floorVal = Math.floor(val);
+        const ceilVal = Math.ceil(val);
+
+        // Create branches
+        // Branch 1: x <= floor
+        const c1: Constraint = {
+          coeffs: Array(this.numVars).fill(0),
+          sign: '<=',
+          rhs: floorVal
+        };
+        c1.coeffs[varIndex] = 1;
+
+        // Branch 2: x >= ceil
+        const c2: Constraint = {
+          coeffs: Array(this.numVars).fill(0),
+          sign: '>=',
+          rhs: ceilVal
+        };
+        c2.coeffs[varIndex] = 1;
+
+        stack.push({ constraints: [...current.constraints, c1], zBound: result.zValue });
+        stack.push({ constraints: [...current.constraints, c2], zBound: result.zValue });
+      }
+    }
+
+    // If we have a graph (2 vars), we should add the integer point to it for visualization
+    if (bestIntegerSolution && bestIntegerSolution.graphData && this.numVars === 2) {
+      const intVars = bestIntegerSolution.variables;
+      bestIntegerSolution.graphData.integerOptimalPoint = {
+        x: intVars[0]?.value || 0,
+        y: intVars[1]?.value || 0,
+        value: bestIntegerSolution.zValue
+      };
+    }
+
+    return bestIntegerSolution;
   }
 }

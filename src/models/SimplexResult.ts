@@ -12,5 +12,8 @@ export interface SimplexResult {
         constraints: { name: string, points: { x: number, y: number }[], color: string, equation?: string }[];
         objectiveLine?: { name: string, points: { x: number, y: number }[], color: string, equation?: string };
         optimalPoint: { x: number, y: number, value: number };
+        integerOptimalPoint?: { x: number, y: number, value: number };
     } | null;
+    multipleSolutions?: boolean;
+    alternativeSolutions?: Variable[][];
 }

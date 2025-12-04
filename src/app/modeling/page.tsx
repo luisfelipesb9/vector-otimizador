@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     ChevronLeft,
@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useProject } from '@/context/project-context';
 import { Variable } from '@/models/Variable';
 import { ProblemData } from '@/models/ProblemData';
+import { AuthController } from '@/controllers/AuthController';
 
 // Mock Generator (Fallback de segurança)
 const generateMock = (variables: Variable[], problemData: ProblemData) => {
@@ -45,6 +46,18 @@ const generateMock = (variables: Variable[], problemData: ProblemData) => {
 
 export default function ModelingScreen() {
     const router = useRouter();
+    const authController = new AuthController();
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const user = await authController.getCurrentUser();
+            if (!user) {
+                router.push('/login');
+            }
+        };
+        checkAuth();
+    }, []);
+
     // Hooks com fallback para evitar erro se o contexto estiver vazio na visualização
     const project = useProject() || {};
     const {
