@@ -77,12 +77,12 @@ export function LinearProgrammingGraph({ result }: LinearProgrammingGraphProps) 
             subdivisions={2}
             xAxis={{ 
               labels: (n) => (n % 10 === 0 ? n : ""), 
-              axisColor: "#334155",
+             
               lines: 1 // CORREÇÃO 2: Apenas número ou undefined, a cor vem do CSS acima
             }}
             yAxis={{ 
               labels: (n) => (n % 10 === 0 ? n : ""),
-              axisColor: "#334155",
+              
               lines: 1 // CORREÇÃO 3: Removido objeto de estilo inválido
             }}
           />
