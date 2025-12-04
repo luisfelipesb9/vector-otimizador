@@ -38,7 +38,8 @@ const generateMock = (variables: Variable[], problemData: ProblemData) => {
         variables: varResults,
         shadowPrices: [10, 0],
         iterations: [],
-        problemData
+        problemData,
+        graphData: null
     };
 };
 
