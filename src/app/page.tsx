@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -20,41 +20,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProjectController } from '@/controllers/ProjectController';
-import { AuthController } from '@/controllers/AuthController';
 import { useProject } from '@/context/project-context';
-import { User } from '@supabase/supabase-js';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { setVariables, setProblemData } = useProject();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const authController = new AuthController();
-
-  // Lógica de Autenticação via Controller
-  useEffect(() => {
-    const checkUser = async () => {
-      const user = await authController.getCurrentUser();
-      setUser(user);
-      setLoading(false);
-    };
-    checkUser();
-
-    const { data: { subscription } } = authController.onAuthStateChange((session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   // Lógica de Upload via Controller
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -81,12 +56,6 @@ export default function HomeScreen() {
     }
     setMobileMenuOpen(false);
   };
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 flex flex-col">
@@ -116,22 +85,11 @@ export default function HomeScreen() {
             </button>
           </nav>
 
-          {/* Direita: Botões de Acesso */}
+          {/* Direita: Botão de Acesso */}
           <div className="hidden md:flex items-center gap-3">
-            {!user ? (
-              <>
-                <Button variant="ghost" onClick={() => router.push('/login')} className="text-slate-600 hover:text-slate-900 font-medium text-base">
-                  Entrar no sistema
-                </Button>
-                <Button variant="default" onClick={() => router.push('/register')} className="bg-slate-900 text-white hover:bg-slate-800 shadow-md rounded-lg px-6 font-medium">
-                  Criar uma conta
-                </Button>
-              </>
-            ) : (
-              <Button variant="default" onClick={() => router.push('/menu')} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg px-6 shadow-md">
-                Ir para o Painel
-              </Button>
-            )}
+            <Button variant="default" onClick={() => router.push('/menu')} className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg px-6 shadow-md">
+              Acessar Painel
+            </Button>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -148,14 +106,7 @@ export default function HomeScreen() {
               <button onClick={() => scrollToSection('features')} className="text-left px-4 py-3 hover:bg-slate-50 rounded-lg font-medium text-slate-700">Recursos</button>
               <button onClick={() => scrollToSection('about')} className="text-left px-4 py-3 hover:bg-slate-50 rounded-lg font-medium text-slate-700">Sobre Nós</button>
               <div className="border-t border-slate-100 my-2 pt-2 flex flex-col gap-3">
-                {!user ? (
-                  <>
-                    <Button variant="secondary" className="w-full justify-center h-12" onClick={() => router.push('/login')}>Entrar</Button>
-                    <Button className="w-full justify-center bg-slate-900 text-white h-12" onClick={() => router.push('/register')}>Criar Conta</Button>
-                  </>
-                ) : (
-                  <Button className="w-full justify-center bg-emerald-600 text-white h-12" onClick={() => router.push('/menu')}>Ir para o Painel</Button>
-                )}
+                <Button className="w-full justify-center bg-emerald-600 text-white h-12" onClick={() => router.push('/menu')}>Acessar Painel</Button>
               </div>
             </div>
           </div>
@@ -192,9 +143,9 @@ export default function HomeScreen() {
                   />
                   <Button
                     className="h-14 px-8 text-lg rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-900/10 hover:shadow-emerald-900/20 hover:scale-105 active:scale-95 transition-all w-full sm:w-auto"
-                    onClick={() => router.push(!user ? '/login' : '/menu')}
+                    onClick={() => router.push('/menu')}
                   >
-                    {!user ? 'Iniciar Calculadora' : 'Acessar Painel'}
+                    Iniciar Calculadora
                   </Button>
 
                   <Button
@@ -208,13 +159,7 @@ export default function HomeScreen() {
                   <Button
                     variant="outline"
                     className="h-14 px-8 text-lg rounded-full border-2 border-slate-200 hover:border-blue-200 text-slate-600 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all w-full sm:w-auto"
-                    onClick={() => {
-                      if (!user) {
-                        router.push('/login');
-                      } else {
-                        fileInputRef.current?.click();
-                      }
-                    }}
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     Carregar Arquivo
                   </Button>

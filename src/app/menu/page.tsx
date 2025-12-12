@@ -4,7 +4,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Network, Grid3X3, Truck, GitBranch, Clock, Gamepad2, ChevronLeft, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AuthController } from '@/controllers/AuthController';
 
 // Mapeamento de cores para garantir que o Tailwind processe as classes
 const colorStyles: Record<string, string> = {
@@ -23,12 +22,6 @@ const borderStyles: Record<string, string> = {
 
 export default function MenuPage() {
     const router = useRouter();
-    const authController = new AuthController();
-
-    const handleLogout = async () => {
-        await authController.logout();
-        router.push('/');
-    };
 
     const modules = [
         { id: 'LE', title: 'Linear Equations', desc: 'Gauss-Jordan / Inversão de Matrizes', icon: Network, color: 'emerald' },
